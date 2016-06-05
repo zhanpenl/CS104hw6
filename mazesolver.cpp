@@ -5,6 +5,8 @@
 #include <queue>
 #include <stack>
 #include <vector>
+#include "heap/heap.h"
+#include <cmath>
 
 
 MazeSolver::MazeSolver(Maze * m, MazeDisplay * md)
@@ -15,14 +17,78 @@ MazeSolver::MazeSolver(Maze * m, MazeDisplay * md)
 
 void MazeSolver::solveByDFSRecursive()
 {
-    // TODO:  This is for you to implement!
-    QMessageBox::information(
-        display,
-        QString("CSCI 104L Assignment Six"),
-        QString("You need to implement solving by DFS (recursive)!") );
+    int numSquares = maze->numRows() * maze->numCols();
+    VisitedTracker vt(maze->numRows(), maze->numCols());
 
+    std::vector<Direction> parent( numSquares );
+    int numExplored = 0;
+    solveByDFSRecursiveHelper(vt, parent, numExplored, maze->getStartRow(), maze->getStartCol());
+
+    // report
+    std::vector<Direction> path;
+    std::stack<Direction> st;
+
+    int r = maze->getGoalRow(), c = maze->getGoalCol();
+    while( r != maze->getStartRow() || c != maze->getStartCol()) {
+        st.push( parent[ squareNumber(r,c) ]);
+        switch( st.top() )
+        {
+        case UP: r++; break; // yes, r++.  I went up to get here...
+        case DOWN: r--; break;
+        case LEFT: c++; break;
+        case RIGHT: c--; break;
+        }
+    }
+    while ( ! st.empty() ) {
+        path.push_back(st.top());
+        st.pop();
+    }
+    display->reportSolution(path, vt, numExplored);
 }
 
+bool MazeSolver::solveByDFSRecursiveHelper(VisitedTracker& vt, std::vector<Direction>& parent, 
+        int& numExplored, int row, int col) {
+
+    if ( row == maze->getGoalRow() && col == maze->getGoalCol() ) return true;
+    if ( vt.isVisited(row, col) ) return false;
+    vt.setVisited(row, col);
+    numExplored++;
+    if ( maze->canTravel(UP, row, col) && ! vt.isVisited(row - 1, col)) {
+        parent[ squareNumber(row - 1, col) ] = UP;
+        if (solveByDFSRecursiveHelper(vt, parent, numExplored, row - 1, col))
+            return true;
+    }
+    if ( maze->canTravel(DOWN, row, col) && ! vt.isVisited(row + 1, col)) {
+        parent[ squareNumber(row + 1, col) ] = DOWN;
+        if (solveByDFSRecursiveHelper(vt, parent, numExplored, row + 1, col))
+            return true;
+    }
+    if ( maze->canTravel(LEFT, row, col) && ! vt.isVisited(row, col - 1)) {
+        parent[ squareNumber(row, col - 1) ] = LEFT;
+        if (solveByDFSRecursiveHelper(vt, parent, numExplored, row, col - 1))
+            return true;
+    }
+    if ( maze->canTravel(RIGHT, row, col) && ! vt.isVisited(row, col + 1)) {
+        parent[ squareNumber(row, col + 1) ] = RIGHT;
+        if (solveByDFSRecursiveHelper(vt, parent, numExplored, row, col + 1))
+            return true;
+    }
+    return false;
+}
+
+int MazeSolver::heuristic(int choice, int row, int col) {
+    int ex = maze->getGoalRow() - row, ey = maze->getGoalCol() - col;
+    switch (choice) {
+        case 1:
+            return 0;
+        case 2:           
+            return sqrt( ex * ex + ey * ey );
+        case 3:
+            return ex + ey;
+        default:
+            return 0;
+    }
+}
 
 void MazeSolver::solveByAStar(int choice)
 {
@@ -33,10 +99,84 @@ void MazeSolver::solveByAStar(int choice)
 
     // else completely up to you.
 
-    QMessageBox::information(
-        display,
-        QString("CSCI 104L Assignment Six"),
-        QString("You need to implement solving by A*!") );
+    int r, c;
+    int numSquares = maze->numRows() * maze->numCols();
+    int d[ numSquares ];
+    VisitedTracker vt(maze->numRows(), maze->numCols());
+    std::vector<Direction> parent( numSquares );
+    int numExplored = 0;
+
+    MinHeap<std::pair<int, int> > mh(2); // tentative 2
+    d[ squareNumber(maze->getStartRow(), maze->getStartCol()) ] = 0;
+    mh.add(std::pair<int,int>(maze->getStartRow(), maze->getStartCol()), 0);
+
+    while ( !mh.isEmpty() ) {
+        std::pair<int, int> v = mh.peek();
+        mh.remove();
+        numExplored++;
+
+        r = v.first;
+        c = v.second;
+        if ( vt.isVisited(r, c) ) continue;
+        vt.setVisited(r, c);
+
+        // if reach goal, report
+        if( r == maze->getGoalRow() && c == maze->getGoalCol() )
+        {
+            std::vector<Direction> path;
+            std::stack<Direction> st;
+
+            while( r != maze->getStartRow() || c != maze->getStartCol())
+            {
+                st.push( parent[ squareNumber(r,c) ]);
+                switch( st.top() )
+                {
+                case UP: r++; break; // yes, r++.  I went up to get here...
+                case DOWN: r--; break;
+                case LEFT: c++; break;
+                case RIGHT: c--; break;
+                }
+            }
+            while ( ! st.empty() )
+            {
+                path.push_back(st.top());
+                st.pop();
+            }
+            display->reportSolution(path, vt, numExplored);
+            return;
+        }
+
+        if ( maze->canTravel(UP, r, c) ) {
+            if (!vt.isVisited(r - 1, c) || d[ squareNumber(r, c) ] + 1 < d[ squareNumber(r - 1, c) ] ) {
+                d[ squareNumber(r - 1, c) ] = d[ squareNumber(r, c) ] + 1;
+                parent[squareNumber(r - 1, c)] = UP;
+                mh.add(std::pair<int,int>(r - 1, c), d[ squareNumber(r - 1, c) ] + heuristic(choice, r, c));
+            }
+        }
+        if ( maze->canTravel(DOWN, r, c) ) {
+            if (!vt.isVisited(r + 1, c) || d[ squareNumber(r, c) ] + 1 < d[ squareNumber(r + 1, c) ] ) {
+                d[ squareNumber(r + 1, c) ] = d[ squareNumber(r, c) ] + 1;
+                parent[squareNumber(r + 1, c)] = DOWN;
+                mh.add(std::pair<int,int>(r + 1, c), d[ squareNumber(r + 1, c) ] + heuristic(choice, r, c));
+            }
+        }
+        if ( maze->canTravel(LEFT, r, c) ) {
+            if (!vt.isVisited(r, c - 1) || d[ squareNumber(r, c) ] + 1 < d[ squareNumber(r, c - 1) ] ) {
+                d[ squareNumber(r, c - 1) ] = d[ squareNumber(r, c) ] + 1;
+                parent[squareNumber(r, c - 1)] = LEFT;
+                mh.add(std::pair<int,int>(r, c - 1), d[ squareNumber(r, c - 1) ] + heuristic(choice, r, c));
+            }
+        }
+        if ( maze->canTravel(RIGHT, r, c) ) {
+            if (!vt.isVisited(r, c + 1) || d[ squareNumber(r, c) ] + 1 < d[ squareNumber(r, c + 1) ] ) {
+                d[ squareNumber(r, c + 1) ] = d[ squareNumber(r, c) ] + 1;
+                parent[squareNumber(r, c + 1)] = RIGHT;
+                mh.add(std::pair<int,int>(r, c + 1), d[ squareNumber(r, c + 1) ] + heuristic(choice, r, c));
+            }
+        }
+
+    }
+
 }
 
 

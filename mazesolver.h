@@ -3,7 +3,7 @@
 
 
 #include "visitedtracker.h"
-
+#include "maze.h"
 /*
  * I didn't want the students to have to deal
  * with function pointers, so I'm making the
@@ -27,7 +27,7 @@ public:
 
     void solveByDFSIterative();
 
-    void solveByDFSRecursive();
+    void solveByDFSRecursive(); 
 
     void solveByAStar(int heuristicChoice);
 
@@ -36,6 +36,11 @@ public:
 private:
 
     int squareNumber(int r, int c) const;
+
+    bool solveByDFSRecursiveHelper(VisitedTracker& vt, std::vector<Direction>& parent, 
+    	int& numExplored, int row, int col);
+
+    int heuristic(int choice, int row, int col);
 
     Maze * maze;
     MazeDisplay * display;
